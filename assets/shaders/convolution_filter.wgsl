@@ -31,8 +31,23 @@ fn apply_filter_on_depth_buffer(id: vec2<f32>, texture: texture_depth_2d, filter
     return depth;
 }
 
-fn apply_filter(id: vec2<f32>, texture: texture_2d<f32>, texture_sampler: sampler, resolution: vec2<f32>, filter_mat: mat3x3<f32>) -> vec3<f32> {
+fn apply_filter(id: vec2<f32>, texture: texture_2d<f32>, filter_mat: mat3x3<f32>) -> vec3<f32> {
+    let depth = abs(
+          filter_mat[0][0] * textureLoad(texture, vec2<i32>(id + vec2<f32>(-1.0,  1.0)), 0).rgb
+        + filter_mat[1][0] * textureLoad(texture, vec2<i32>(id + vec2<f32>( 0.0,  1.0)), 0).rgb
+        + filter_mat[2][0] * textureLoad(texture, vec2<i32>(id + vec2<f32>( 1.0,  1.0)), 0).rgb
+        + filter_mat[0][1] * textureLoad(texture, vec2<i32>(id + vec2<f32>(-1.0,  0.0)), 0).rgb
+        + filter_mat[1][1] * textureLoad(texture, vec2<i32>(id + vec2<f32>( 0.0,  0.0)), 0).rgb
+        + filter_mat[2][1] * textureLoad(texture, vec2<i32>(id + vec2<f32>( 0.0, -1.0)), 0).rgb
+        + filter_mat[0][2] * textureLoad(texture, vec2<i32>(id + vec2<f32>(-1.0, -1.0)), 0).rgb
+        + filter_mat[1][2] * textureLoad(texture, vec2<i32>(id + vec2<f32>( 0.0, -1.0)), 0).rgb
+        + filter_mat[2][2] * textureLoad(texture, vec2<i32>(id + vec2<f32>( 1.0, -1.0)), 0).rgb
+    );
 
+    return depth;
+}
+
+fn apply_filter_on_texture_with_sampler(id: vec2<f32>, texture: texture_2d<f32>, texture_sampler: sampler, resolution: vec2<f32>, filter_mat: mat3x3<f32>) -> vec3<f32> {
     let color = abs(
           filter_mat[0][0] * textureSample(texture, texture_sampler, id + (vec2<f32>(-1.0,  1.0) / resolution)).rgb
         + filter_mat[1][0] * textureSample(texture, texture_sampler, id + (vec2<f32>( 0.0,  1.0) / resolution)).rgb

@@ -22,6 +22,7 @@
 #import "shaders/convolution_filter.wgsl"::create_filter
 #import "shaders/convolution_filter.wgsl"::create_filter_from_scalar
 #import "shaders/convolution_filter.wgsl"::apply_filter_on_depth_buffer
+#import "shaders/convolution_filter.wgsl"::apply_filter_on_texture_with_sampler
 #import "shaders/convolution_filter.wgsl"::apply_filter
 
 
@@ -29,6 +30,7 @@
 @group(0) @binding(0) var screen_texture: texture_2d<f32>;
 @group(0) @binding(1) var texture_sampler: sampler;
 @group(0) @binding(3) var depth_prepass_texture: texture_depth_2d;
+@group(0) @binding(4) var normal_prepass_texture: texture_2d<f32>;
 
 @fragment
 fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
@@ -72,16 +74,19 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
         1.0, 0.0, -1.0,
     );
     let depth = textureLoad(depth_prepass_texture, vec2<i32>(in.position.xy), 0);
+    let normal = textureLoad(normal_prepass_texture, vec2<i32>(in.position.xy), 0);
 
-    let x = apply_filter(in.uv, screen_texture, texture_sampler, resolution, sobel_x).rgb;
-    let y = apply_filter(in.uv, screen_texture, texture_sampler, resolution, sobel_y).rgb;
+    let x = apply_filter_on_texture_with_sampler(in.uv, screen_texture, texture_sampler, resolution, sobel_x).rgb;
+    let y = apply_filter_on_texture_with_sampler(in.uv, screen_texture, texture_sampler, resolution, sobel_y).rgb;
 
     let depth_x = apply_filter_on_depth_buffer(in.position.xy, depth_prepass_texture, sobel_x);
     let depth_y = apply_filter_on_depth_buffer(in.position.xy, depth_prepass_texture, sobel_y);
 
+    let normal_x = apply_filter(in.position.xy, normal_prepass_texture, sobel_x);
+    let normal_y = apply_filter(in.position.xy, normal_prepass_texture, sobel_y);
+
     return vec4<f32>(
-        vec3(depth_x + depth_y).rgb,
+        (normal_x + normal_y).rgb,
         1.0
     );
-
 }

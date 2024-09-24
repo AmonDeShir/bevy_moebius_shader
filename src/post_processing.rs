@@ -143,6 +143,10 @@ impl ViewNode for PostProcessNode {
             return Ok(());
         };
 
+        let Some(normal_buffer) = &prepass_textures.normal else {
+            return Ok(());
+        };
+
         // This will start a new "post process write", obtaining two texture
         // views from the view target - a `source` and a `destination`.
         // `source` is the "current" main texture and you _must_ write into
@@ -171,7 +175,9 @@ impl ViewNode for PostProcessNode {
                 // Set the settings binding
                 settings_binding.clone(),
                 // depth
-                &depth_buffer.texture.default_view
+                &depth_buffer.texture.default_view,
+                // normal
+                &normal_buffer.texture.default_view
             )),
         );
 
@@ -230,6 +236,8 @@ impl FromWorld for PostProcessPipeline {
                     uniform_buffer::<PostProcessSettings>(true),
                     // depth buffer
                     texture_depth_2d(),
+                    // normal map
+                    texture_2d(TextureSampleType::Float { filterable: true }),
                 ),
             ),
         );
