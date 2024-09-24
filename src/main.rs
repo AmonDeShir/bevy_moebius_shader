@@ -14,10 +14,12 @@ use crate::post_processing::{PostProcessPlugin, PostProcessSettings};
 use bevy::prelude::*;
 use bevy::core_pipeline::prepass::{DepthPrepass, NormalPrepass};
 use bevy::render::render_resource::TextureUsages;
+use noisy_bevy::NoisyShaderPlugin;
 
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, PostProcessPlugin))
+        .add_plugins(NoisyShaderPlugin)
         .add_systems(Startup, setup)
         .add_systems(Update, (update_settings))
         .insert_resource(Msaa::Off)

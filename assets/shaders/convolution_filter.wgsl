@@ -6,7 +6,45 @@ fn create_filter_from_scalar(a: f32) -> mat3x3<f32> {
     );
 }
 
-
+//    Example filters
+//
+//    let identity = create_filter(
+//        0.0, 0.0, 0.0,
+//        0.0, 1.0, 0.0,
+//        0.0, 0.0, 0.0,
+//    );
+//
+//    let sharpen = create_filter(
+//        0.0, -1.0, 0.0,
+//        -1.0, 5.0, -1.0,
+//        0.0, -1.0, 0.0,
+//    );
+//
+//    let mean_blur = create_filter_from_scalar(1.0/9.0);
+//
+//    let leplecian = create_filter(
+//        0.0, 1.0, 0.0,
+//        1.0, -4.0, 1.0,
+//        0.0, 1.0, 0.0,
+//    );
+//
+//    let gauss = create_filter(
+//        1.0/16.0, 2.0/16.0, 1.0/16.0,
+//        2.0/16.0, 4.0/16.0, 2.0/16.0,
+//        1.0/16.0, 2.0/16.0, 1.0/16.0,
+//    );
+//
+//    let sobel_x = create_filter(
+//         1.0,  2.0, 1.0,
+//         0.0,  0.0, 0.0,
+//        -1.0, -2.0, -1.0,
+//    );
+//
+//    let sobel_y = create_filter(
+//        1.0, 0.0, -1.0,
+//        2.0, 0.0, -2.0,
+//        1.0, 0.0, -1.0,
+//    );
 fn create_filter(a: f32, b:f32, c:f32, d:f32, e:f32, f:f32, g:f32, h:f32, i:f32) -> mat3x3<f32> {
     return mat3x3(
         a, d, g,

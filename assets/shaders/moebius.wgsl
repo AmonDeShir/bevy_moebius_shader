@@ -19,13 +19,8 @@
 //
 // You don't need to worry about this too much since bevy will compute the correct UVs for you.
 #import bevy_core_pipeline::fullscreen_vertex_shader::FullscreenVertexOutput
-#import "shaders/convolution_filter.wgsl"::create_filter
-#import "shaders/convolution_filter.wgsl"::create_filter_from_scalar
-#import "shaders/convolution_filter.wgsl"::apply_filter_on_depth_buffer
-#import "shaders/convolution_filter.wgsl"::apply_filter_on_texture_with_sampler
-#import "shaders/convolution_filter.wgsl"::apply_filter
-
-
+#import "shaders/edge_detection.wgsl"::detect_edge
+#import "shaders/simplex_noise.wgsl"::simplex_noise_2d
 
 @group(0) @binding(0) var screen_texture: texture_2d<f32>;
 @group(0) @binding(1) var texture_sampler: sampler;
@@ -34,59 +29,12 @@
 
 @fragment
 fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
-    let resolution = vec2<f32>(textureDimensions(screen_texture));
+    let noise = simplex_noise_2d(in.uv * 50) * 1.0;
+    let edge = detect_edge(in.position.xy + noise, depth_prepass_texture, normal_prepass_texture);
 
-    let identity = create_filter(
-        0.0, 0.0, 0.0,
-        0.0, 1.0, 0.0,
-        0.0, 0.0, 0.0,
-    );
+    if edge > 0.8 {
+        return vec4(0.0, 0.0, 0.0, 1.0);
+    }
 
-    let sharpen = create_filter(
-        0.0, -1.0, 0.0,
-        -1.0, 5.0, -1.0,
-        0.0, -1.0, 0.0,
-    );
-
-    let mean_blur = create_filter_from_scalar(1.0/9.0);
-
-    let leplecian = create_filter(
-        0.0, 1.0, 0.0,
-        1.0, -4.0, 1.0,
-        0.0, 1.0, 0.0,
-    );
-
-    let gauss = create_filter(
-        1.0/16.0, 2.0/16.0, 1.0/16.0,
-        2.0/16.0, 4.0/16.0, 2.0/16.0,
-        1.0/16.0, 2.0/16.0, 1.0/16.0,
-    );
-
-    let sobel_x = create_filter(
-         1.0,  2.0, 1.0,
-         0.0,  0.0, 0.0,
-        -1.0, -2.0, -1.0,
-    );
-
-    let sobel_y = create_filter(
-        1.0, 0.0, -1.0,
-        2.0, 0.0, -2.0,
-        1.0, 0.0, -1.0,
-    );
-    let depth = textureLoad(depth_prepass_texture, vec2<i32>(in.position.xy), 0);
-    let normal = textureLoad(normal_prepass_texture, vec2<i32>(in.position.xy), 0);
-
-    let x = apply_filter_on_texture_with_sampler(in.uv, screen_texture, texture_sampler, resolution, sobel_x).rgb;
-    let y = apply_filter_on_texture_with_sampler(in.uv, screen_texture, texture_sampler, resolution, sobel_y).rgb;
-
-    let depth_x = apply_filter_on_depth_buffer(in.position.xy, depth_prepass_texture, sobel_x);
-    let depth_y = apply_filter_on_depth_buffer(in.position.xy, depth_prepass_texture, sobel_y);
-
-    let normal_x = apply_filter(in.position.xy, normal_prepass_texture, sobel_x);
-    let normal_y = apply_filter(in.position.xy, normal_prepass_texture, sobel_y);
-
-    return vec4<f32>(
-        (normal_x + normal_y).rgb,
-        1.0
-    );
+    return vec4(1.0, 1.0, 1.0, 1.0);
 }
