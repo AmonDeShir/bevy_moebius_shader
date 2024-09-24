@@ -8,47 +8,50 @@
 
 mod post_processing;
 
+use bevy::core_pipeline::core_3d::Camera3dDepthTextureUsage;
+use bevy::core_pipeline::fxaa::{Fxaa, Sensitivity};
 use crate::post_processing::{PostProcessPlugin, PostProcessSettings};
 use bevy::prelude::*;
+use bevy::core_pipeline::prepass::{DepthPrepass, NormalPrepass};
+use bevy::render::render_resource::TextureUsages;
 
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, PostProcessPlugin))
         .add_systems(Startup, setup)
-        .add_systems(Update, (rotate, update_settings))
+        .add_systems(Update, (update_settings))
+        .insert_resource(Msaa::Off)
         .run();
 }
 
 /// Set up a simple 3D scene
 fn setup(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
     // camera
     commands.spawn((
         Camera3dBundle {
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 5.0))
-                .looking_at(Vec3::default(), Vec3::Y),
-            camera: Camera {
-                clear_color: Color::WHITE.into(),
-                ..default()
-            },
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 5.0)).looking_at(Vec3::default(), Vec3::Y),
             ..default()
         },
-        // Add the setting to the camera.
-        // This component is also used to determine on which camera to run the post-processing effect.
         PostProcessSettings {
             intensity: 0.02,
             ..default()
+        },
+        DepthPrepass,
+        NormalPrepass,
+        Fxaa {
+            enabled: true,
+            edge_threshold: Sensitivity::Extreme,
+            edge_threshold_min: Sensitivity::Extreme,
         },
     ));
 
     // cube
     commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Cuboid::default()),
-            material: materials.add(Color::srgb(0.8, 0.7, 0.6)),
+        SceneBundle {
+            scene: asset_server.load("suzanne.glb#Scene0"),
             transform: Transform::from_xyz(0.0, 0.5, 0.0),
             ..default()
         },

@@ -1,11 +1,12 @@
 use bevy::prelude::*;
 use bevy::core_pipeline::core_3d::graph::{Core3d, Node3d};
 use bevy::core_pipeline::fullscreen_vertex_shader::fullscreen_shader_vertex_state;
+use bevy::core_pipeline::prepass::{DepthPrepass, ViewPrepassTextures};
 use bevy::ecs::query::QueryItem;
 use bevy::render::extract_component::{ComponentUniforms, DynamicUniformIndex, ExtractComponent, ExtractComponentPlugin, UniformComponentPlugin};
 use bevy::render::render_graph::{NodeRunError, RenderGraphApp, RenderGraphContext, RenderLabel, ViewNode, ViewNodeRunner};
 use bevy::render::render_resource::{BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, CachedRenderPipelineId, ColorTargetState, ColorWrites, FragmentState, MultisampleState, Operations, PipelineCache, PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor, RenderPipelineDescriptor, Sampler, SamplerBindingType, SamplerDescriptor, ShaderStages, ShaderType, TextureFormat, TextureSampleType};
-use bevy::render::render_resource::binding_types::{sampler, texture_2d, uniform_buffer};
+use bevy::render::render_resource::binding_types::{sampler, texture_2d, texture_depth_2d, texture_depth_2d_multisampled, uniform_buffer};
 use bevy::render::RenderApp;
 use bevy::render::renderer::{RenderContext, RenderDevice};
 use bevy::render::texture::BevyDefault;
@@ -100,6 +101,7 @@ impl ViewNode for PostProcessNode {
         // As there could be multiple post-processing components sent to the GPU (one per camera),
         // we need to get the index of the one that is associated with the current view.
         &'static DynamicUniformIndex<PostProcessSettings>,
+        &'static ViewPrepassTextures
     );
 
     // Runs the node logic
@@ -111,9 +113,9 @@ impl ViewNode for PostProcessNode {
     // to identify which camera(s) should run the effect.
     fn run(
         &self,
-        _graph: &mut RenderGraphContext,
+        graph_context: &mut RenderGraphContext,
         render_context: &mut RenderContext,
-        (view_target, _post_process_settings, settings_index): QueryItem<Self::ViewQuery>,
+        (view_target, _post_process_settings, settings_index, prepass_textures): QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), NodeRunError> {
         // Get the pipeline resource that contains the global data we need
@@ -134,6 +136,10 @@ impl ViewNode for PostProcessNode {
         // Get the settings uniform binding
         let settings_uniforms = world.resource::<ComponentUniforms<PostProcessSettings>>();
         let Some(settings_binding) = settings_uniforms.uniforms().binding() else {
+            return Ok(());
+        };
+
+        let Some(depth_buffer) = &prepass_textures.depth else {
             return Ok(());
         };
 
@@ -164,6 +170,8 @@ impl ViewNode for PostProcessNode {
                 &post_process_pipeline.sampler,
                 // Set the settings binding
                 settings_binding.clone(),
+                // depth
+                &depth_buffer.texture.default_view
             )),
         );
 
@@ -220,6 +228,8 @@ impl FromWorld for PostProcessPipeline {
                     sampler(SamplerBindingType::Filtering),
                     // The settings uniform that will control the effect
                     uniform_buffer::<PostProcessSettings>(true),
+                    // depth buffer
+                    texture_depth_2d(),
                 ),
             ),
         );
