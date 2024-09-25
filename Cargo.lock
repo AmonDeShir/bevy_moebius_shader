@@ -179,6 +179,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.89"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86fdf8605db99b54d3cd748a44c6d04df638eb5dafb219b135d0149bd0db01f6"
+
+[[package]]
 name = "approx"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -447,6 +453,19 @@ dependencies = [
  "serde",
  "thiserror",
  "wgpu-types",
+]
+
+[[package]]
+name = "bevy_common_assets"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f631ce2863f3b6f1af3fa24143363b9fbd21c44218caad495a17b83e6968256"
+dependencies = [
+ "anyhow",
+ "bevy",
+ "ron",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
@@ -910,7 +929,7 @@ name = "bevy_shaders"
 version = "0.1.0"
 dependencies = [
  "bevy",
- "noisy_bevy",
+ "blenvy",
 ]
 
 [[package]]
@@ -1188,6 +1207,19 @@ dependencies = [
  "cc",
  "cfg-if",
  "constant_time_eq",
+]
+
+[[package]]
+name = "blenvy"
+version = "0.1.0-alpha.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a54af0aa5fc695e7a3a6880a34570b1a5388851a20cee43f90c43f2580ff8fcd"
+dependencies = [
+ "bevy",
+ "bevy_common_assets",
+ "ron",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2572,15 +2604,6 @@ dependencies = [
  "cfg-if",
  "cfg_aliases 0.2.1",
  "libc",
-]
-
-[[package]]
-name = "noisy_bevy"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a498a5310e40540a941aca31ef341a0b229e11b04fb359c9c023ac412e34465b"
-dependencies = [
- "bevy",
 ]
 
 [[package]]

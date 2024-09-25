@@ -83,7 +83,6 @@ impl Plugin for PostProcessPlugin {
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 pub struct PostProcessLabel;
 
-
 // The post process node used for the render graph
 #[derive(Default)]
 pub struct PostProcessNode;

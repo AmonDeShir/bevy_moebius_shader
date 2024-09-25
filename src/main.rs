@@ -13,16 +13,17 @@ use bevy::core_pipeline::fxaa::{Fxaa, Sensitivity};
 use crate::post_processing::{PostProcessPlugin, PostProcessSettings};
 use bevy::prelude::*;
 use bevy::core_pipeline::prepass::{DepthPrepass, NormalPrepass};
-use bevy::render::render_resource::TextureUsages;
-use noisy_bevy::NoisyShaderPlugin;
+use blenvy::*;
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, PostProcessPlugin))
-        .add_plugins(NoisyShaderPlugin)
+        .add_plugins(DefaultPlugins)
+        .add_plugins(PostProcessPlugin)
+        .add_plugins(BlenvyPlugin::default())
         .add_systems(Startup, setup)
-        .add_systems(Update, (update_settings))
+        .add_systems(Update, (update_settings, rotate))
         .insert_resource(Msaa::Off)
+        .register_type::<Rotates>()
         .run();
 }
 
@@ -31,9 +32,20 @@ fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
 ) {
+    commands.spawn((
+        BlueprintInfo::from_path("levels/World.glb"),
+        SpawnBlueprint,
+        HideUntilReady,
+        GameWorldTag,
+    ));
+
     // camera
     commands.spawn((
         Camera3dBundle {
+            camera: Camera {
+                clear_color: ClearColorConfig::Custom(Color::BLACK),
+                ..default()
+            },
             transform: Transform::from_translation(Vec3::new(0.0, 0.0, 5.0)).looking_at(Vec3::default(), Vec3::Y),
             ..default()
         },
@@ -49,27 +61,10 @@ fn setup(
             edge_threshold_min: Sensitivity::Extreme,
         },
     ));
-
-    // cube
-    commands.spawn((
-        SceneBundle {
-            scene: asset_server.load("suzanne.glb#Scene0"),
-            transform: Transform::from_xyz(0.0, 0.5, 0.0),
-            ..default()
-        },
-        Rotates,
-    ));
-    // light
-    commands.spawn(DirectionalLightBundle {
-        directional_light: DirectionalLight {
-            illuminance: 1_000.,
-            ..default()
-        },
-        ..default()
-    });
 }
 
-#[derive(Component)]
+#[derive(Component, Reflect)]
+#[reflect(Component)]
 struct Rotates;
 
 /// Rotates any entity around the x and y axis.
