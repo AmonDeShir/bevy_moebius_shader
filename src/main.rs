@@ -6,22 +6,24 @@
 //!
 //! This is a fairly low level example and assumes some familiarity with rendering concepts and wgpu.
 
-mod post_processing;
+mod post_processing_moebius;
+mod moebius_material;
 
-use bevy::core_pipeline::core_3d::Camera3dDepthTextureUsage;
 use bevy::core_pipeline::fxaa::{Fxaa, Sensitivity};
-use crate::post_processing::{PostProcessPlugin, PostProcessSettings};
+use crate::post_processing_moebius::{MoebiusPostProcessSettings, MoebiusPostProcessPlugin};
 use bevy::prelude::*;
 use bevy::core_pipeline::prepass::{DepthPrepass, NormalPrepass};
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use blenvy::*;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(PostProcessPlugin)
+        .add_plugins(WorldInspectorPlugin::new())
+        .add_plugins(MoebiusPostProcessPlugin)
         .add_plugins(BlenvyPlugin::default())
         .add_systems(Startup, setup)
-        .add_systems(Update, (update_settings, rotate))
+        .add_systems(Update, rotate)
         .insert_resource(Msaa::Off)
         .register_type::<Rotates>()
         .run();
@@ -30,7 +32,6 @@ fn main() {
 /// Set up a simple 3D scene
 fn setup(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
 ) {
     commands.spawn((
         BlueprintInfo::from_path("levels/World.glb"),
@@ -49,10 +50,7 @@ fn setup(
             transform: Transform::from_translation(Vec3::new(0.0, 0.0, 5.0)).looking_at(Vec3::default(), Vec3::Y),
             ..default()
         },
-        PostProcessSettings {
-            intensity: 0.02,
-            ..default()
-        },
+        MoebiusPostProcessSettings::default(),
         DepthPrepass,
         NormalPrepass,
         Fxaa {
@@ -72,22 +70,5 @@ fn rotate(time: Res<Time>, mut query: Query<&mut Transform, With<Rotates>>) {
     for mut transform in &mut query {
         transform.rotate_x(0.55 * time.delta_seconds());
         transform.rotate_z(0.15 * time.delta_seconds());
-    }
-}
-
-// Change the intensity over time to show that the effect is controlled from the main world
-fn update_settings(mut settings: Query<&mut PostProcessSettings>, time: Res<Time>) {
-    for mut setting in &mut settings {
-        let mut intensity = time.elapsed_seconds().sin();
-        // Make it loop periodically
-        intensity = intensity.sin();
-        // Remap it to 0..1 because the intensity can't be negative
-        intensity = intensity * 0.5 + 0.5;
-        // Scale it to a more reasonable level
-        intensity *= 0.015;
-
-        // Set the intensity.
-        // This will then be extracted to the render world and uploaded to the gpu automatically by the [`UniformComponentPlugin`]
-        setting.intensity = intensity;
     }
 }

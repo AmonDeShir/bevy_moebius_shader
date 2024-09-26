@@ -1,21 +1,21 @@
-use bevy::prelude::*;
 use bevy::core_pipeline::core_3d::graph::{Core3d, Node3d};
 use bevy::core_pipeline::fullscreen_vertex_shader::fullscreen_shader_vertex_state;
-use bevy::core_pipeline::prepass::{DepthPrepass, ViewPrepassTextures};
+use bevy::core_pipeline::prepass::ViewPrepassTextures;
 use bevy::ecs::query::QueryItem;
+use bevy::prelude::*;
 use bevy::render::extract_component::{ComponentUniforms, DynamicUniformIndex, ExtractComponent, ExtractComponentPlugin, UniformComponentPlugin};
 use bevy::render::render_graph::{NodeRunError, RenderGraphApp, RenderGraphContext, RenderLabel, ViewNode, ViewNodeRunner};
+use bevy::render::render_resource::binding_types::{sampler, texture_2d, texture_depth_2d, uniform_buffer};
 use bevy::render::render_resource::{BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, CachedRenderPipelineId, ColorTargetState, ColorWrites, FragmentState, MultisampleState, Operations, PipelineCache, PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor, RenderPipelineDescriptor, Sampler, SamplerBindingType, SamplerDescriptor, ShaderStages, ShaderType, TextureFormat, TextureSampleType};
-use bevy::render::render_resource::binding_types::{sampler, texture_2d, texture_depth_2d, texture_depth_2d_multisampled, uniform_buffer};
-use bevy::render::RenderApp;
 use bevy::render::renderer::{RenderContext, RenderDevice};
 use bevy::render::texture::BevyDefault;
 use bevy::render::view::ViewTarget;
+use bevy::render::RenderApp;
 
-/// It is generally encouraged to set up post-processing effects as a plugin
-pub struct PostProcessPlugin;
+/// Generates COMIC's like outline
+pub struct MoebiusPostProcessPlugin;
 
-impl Plugin for PostProcessPlugin {
+impl Plugin for MoebiusPostProcessPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
             // The settings will be a component that lives in the main world but will
@@ -24,12 +24,14 @@ impl Plugin for PostProcessPlugin {
             // This plugin will take care of extracting it automatically.
             // It's important to derive [`ExtractComponent`] on [`PostProcessingSettings`]
             // for this plugin to work correctly.
-            ExtractComponentPlugin::<PostProcessSettings>::default(),
+            ExtractComponentPlugin::<MoebiusPostProcessSettings>::default(),
             // The settings will also be the data used in the shader.
             // This plugin will prepare the component for the GPU by creating a uniform buffer
             // and writing the data to that buffer every frame.
-            UniformComponentPlugin::<PostProcessSettings>::default(),
+            UniformComponentPlugin::<MoebiusPostProcessSettings>::default(),
         ));
+
+        app.register_type::<MoebiusPostProcessSettings>();
 
         // We need to get the render app from the main app
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
@@ -50,11 +52,11 @@ impl Plugin for PostProcessPlugin {
             //
             // The [`ViewNodeRunner`] is a special [`Node`] that will automatically run the node for each view
             // matching the [`ViewQuery`]
-            .add_render_graph_node::<ViewNodeRunner<PostProcessNode>>(
+            .add_render_graph_node::<ViewNodeRunner<MoebiusPostProcessNode>>(
                 // Specify the label of the graph, in this case we want the graph for 3d
                 Core3d,
                 // It also needs the label of the node
-                PostProcessLabel,
+                MoebiusPostProcess,
             )
             .add_render_graph_edges(
                 Core3d,
@@ -62,7 +64,7 @@ impl Plugin for PostProcessPlugin {
                 // This will automatically create all required node edges to enforce the given ordering.
                 (
                     Node3d::Tonemapping,
-                    PostProcessLabel,
+                    MoebiusPostProcess,
                     Node3d::EndMainPassPostProcessing,
                 ),
             );
@@ -76,19 +78,19 @@ impl Plugin for PostProcessPlugin {
 
         render_app
             // Initialize the pipeline
-            .init_resource::<PostProcessPipeline>();
+            .init_resource::<MoebiusPostProcessPipeline>();
     }
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
-pub struct PostProcessLabel;
+struct MoebiusPostProcess;
 
 // The post process node used for the render graph
 #[derive(Default)]
-pub struct PostProcessNode;
+struct MoebiusPostProcessNode;
 
 // The ViewNode trait is required by the ViewNodeRunner
-impl ViewNode for PostProcessNode {
+impl ViewNode for MoebiusPostProcessNode {
     // The node needs a query to gather data from the ECS in order to do its rendering,
     // but it's not a normal system so we need to define it manually.
     //
@@ -96,11 +98,11 @@ impl ViewNode for PostProcessNode {
     type ViewQuery = (
         &'static ViewTarget,
         // This makes sure the node only runs on cameras with the PostProcessSettings component
-        &'static PostProcessSettings,
+        &'static MoebiusPostProcessSettings,
         // As there could be multiple post-processing components sent to the GPU (one per camera),
         // we need to get the index of the one that is associated with the current view.
-        &'static DynamicUniformIndex<PostProcessSettings>,
-        &'static ViewPrepassTextures
+        &'static DynamicUniformIndex<MoebiusPostProcessSettings>,
+        &'static ViewPrepassTextures,
     );
 
     // Runs the node logic
@@ -112,14 +114,14 @@ impl ViewNode for PostProcessNode {
     // to identify which camera(s) should run the effect.
     fn run(
         &self,
-        graph_context: &mut RenderGraphContext,
+        _graph_context: &mut RenderGraphContext,
         render_context: &mut RenderContext,
         (view_target, _post_process_settings, settings_index, prepass_textures): QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), NodeRunError> {
         // Get the pipeline resource that contains the global data we need
         // to create the render pipeline
-        let post_process_pipeline = world.resource::<PostProcessPipeline>();
+        let post_process_pipeline = world.resource::<MoebiusPostProcessPipeline>();
 
         // The pipeline cache is a cache of all previously created pipelines.
         // It is required to avoid creating a new pipeline each frame,
@@ -133,7 +135,7 @@ impl ViewNode for PostProcessNode {
         };
 
         // Get the settings uniform binding
-        let settings_uniforms = world.resource::<ComponentUniforms<PostProcessSettings>>();
+        let settings_uniforms = world.resource::<ComponentUniforms<MoebiusPostProcessSettings>>();
         let Some(settings_binding) = settings_uniforms.uniforms().binding() else {
             return Ok(());
         };
@@ -163,7 +165,7 @@ impl ViewNode for PostProcessNode {
         // The only way to have the correct source/destination for the bind_group
         // is to make sure you get it during the node execution.
         let bind_group = render_context.render_device().create_bind_group(
-            "post_process_bind_group",
+            "mobius_post_process_bind_group",
             &post_process_pipeline.layout,
             // It's important for this to match the BindGroupLayout defined in the PostProcessPipeline
             &BindGroupEntries::sequential((
@@ -176,13 +178,13 @@ impl ViewNode for PostProcessNode {
                 // depth
                 &depth_buffer.texture.default_view,
                 // normal
-                &normal_buffer.texture.default_view
+                &normal_buffer.texture.default_view,
             )),
         );
 
         // Begin the render pass
         let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
-            label: Some("post_process_pass"),
+            label: Some("mobius_post_process_pass"),
             color_attachments: &[Some(RenderPassColorAttachment {
                 // We need to specify the post process destination view here
                 // to make sure we write to the appropriate texture.
@@ -210,19 +212,19 @@ impl ViewNode for PostProcessNode {
 
 // This contains global data used by the render pipeline. This will be created once on startup.
 #[derive(Resource)]
-pub struct PostProcessPipeline {
+struct MoebiusPostProcessPipeline {
     layout: BindGroupLayout,
     sampler: Sampler,
     pipeline_id: CachedRenderPipelineId,
 }
 
-impl FromWorld for PostProcessPipeline {
+impl FromWorld for MoebiusPostProcessPipeline {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.resource::<RenderDevice>();
 
         // We need to define the bind group layout used for our pipeline
         let layout = render_device.create_bind_group_layout(
-            "post_process_bind_group_layout",
+            "mobius_post_process_bind_group_layout",
             &BindGroupLayoutEntries::sequential(
                 // The layout entries will only be visible in the fragment stage
                 ShaderStages::FRAGMENT,
@@ -232,7 +234,7 @@ impl FromWorld for PostProcessPipeline {
                     // The sampler that will be used to sample the screen texture
                     sampler(SamplerBindingType::Filtering),
                     // The settings uniform that will control the effect
-                    uniform_buffer::<PostProcessSettings>(true),
+                    uniform_buffer::<MoebiusPostProcessSettings>(true),
                     // depth buffer
                     texture_depth_2d(),
                     // normal map
@@ -243,9 +245,7 @@ impl FromWorld for PostProcessPipeline {
 
         // We can create the sampler here since it won't change at runtime and doesn't depend on the view
         let sampler = render_device.create_sampler(&SamplerDescriptor::default());
-
-        // Get the shader handle
-        let shader = world.load_asset("shaders/moebius.wgsl");
+        let shader = world.load_asset("shaders/moebius_outline.wgsl");
 
         let pipeline_id = world
             .resource_mut::<PipelineCache>()
@@ -283,9 +283,23 @@ impl FromWorld for PostProcessPipeline {
     }
 }
 
-
 // This is the component that will get passed to the shader
-#[derive(Component, Default, Clone, Copy, ExtractComponent, ShaderType)]
-pub struct PostProcessSettings {
-    pub intensity: f32,
+#[derive(Component, Clone, Copy, ExtractComponent, ShaderType, Reflect)]
+#[reflect(Component)]
+pub struct MoebiusPostProcessSettings {
+    pub outline_threshold: f32,
+    pub inline_threshold: f32,
+    pub outline_color: Vec4,
+    pub inline_color: Vec4,
+}
+
+impl Default for MoebiusPostProcessSettings {
+    fn default() -> Self {
+        MoebiusPostProcessSettings {
+            outline_color: Color::BLACK.to_srgba().to_vec4(),
+            outline_threshold: 0.01,
+            inline_color: Vec4::new(0.5, 0.5, 0.5,1.0),
+            inline_threshold: 0.9,
+        }
+    }
 }
