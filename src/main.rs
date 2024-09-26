@@ -9,23 +9,31 @@
 mod post_processing_moebius;
 mod moebius_material;
 
-use bevy::core_pipeline::fxaa::{Fxaa, Sensitivity};
-use crate::post_processing_moebius::{MoebiusPostProcessSettings, MoebiusPostProcessPlugin};
+use bevy::core_pipeline::fxaa::Fxaa;
+use crate::post_processing_moebius::MoebiusPostProcessPlugin;
 use bevy::prelude::*;
 use bevy::core_pipeline::prepass::{DepthPrepass, NormalPrepass};
+use bevy::ecs::component::{ComponentHooks, ComponentId, StorageType};
+use bevy::ecs::world::DeferredWorld;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use blenvy::*;
+use crate::moebius_material::MoebiusMaterialPlugin;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(WorldInspectorPlugin::new())
         .add_plugins(MoebiusPostProcessPlugin)
+        .add_plugins(MoebiusMaterialPlugin)
         .add_plugins(BlenvyPlugin::default())
         .add_systems(Startup, setup)
         .add_systems(Update, rotate)
         .insert_resource(Msaa::Off)
         .register_type::<Rotates>()
+        .register_type::<MoebiusCamera>()
+        .register_type::<DepthPrepass>()
+        .register_type::<NormalPrepass>()
+        .register_type::<Fxaa>()
         .run();
 }
 
@@ -39,26 +47,18 @@ fn setup(
         HideUntilReady,
         GameWorldTag,
     ));
-
-    // camera
-    commands.spawn((
-        Camera3dBundle {
-            camera: Camera {
-                clear_color: ClearColorConfig::Custom(Color::BLACK),
-                ..default()
-            },
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 5.0)).looking_at(Vec3::default(), Vec3::Y),
-            ..default()
-        },
-        MoebiusPostProcessSettings::default(),
-        DepthPrepass,
-        NormalPrepass,
-        Fxaa {
-            enabled: true,
-            edge_threshold: Sensitivity::Extreme,
-            edge_threshold_min: Sensitivity::Extreme,
-        },
-    ));
+    //
+    // // camera
+    // commands.spawn((
+    //     Camera3dBundle {
+    //         camera: Camera {
+    //             clear_color: ClearColorConfig::Custom(Color::BLACK),
+    //             ..default()
+    //         },
+    //         transform: Transform::from_translation(Vec3::new(0.0, 0.0, 5.0)).looking_at(Vec3::default(), Vec3::Y),
+    //         ..default()
+    //     }
+    // ));
 }
 
 #[derive(Component, Reflect)]
@@ -70,5 +70,22 @@ fn rotate(time: Res<Time>, mut query: Query<&mut Transform, With<Rotates>>) {
     for mut transform in &mut query {
         transform.rotate_x(0.55 * time.delta_seconds());
         transform.rotate_z(0.15 * time.delta_seconds());
+    }
+}
+
+#[derive(Reflect)]
+#[reflect(Component)]
+pub struct MoebiusCamera;
+
+impl Component for MoebiusCamera {
+    const STORAGE_TYPE: StorageType = StorageType::Table;
+
+    fn register_component_hooks(hooks: &mut ComponentHooks) {
+        hooks.on_insert(|mut world: DeferredWorld, entity, _component_id: ComponentId| {
+            let mut cmd = world.commands();
+            let mut camera = cmd.entity(entity);
+
+            camera.insert((NormalPrepass, DepthPrepass));
+        });
     }
 }

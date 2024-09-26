@@ -2,5 +2,6 @@
   assets:
    [ 
     ("Monkey", File ( path: "blueprints/Monkey.glb" )),
+    ("Material", File ( path: "materials/Material.glb" )),
    ]
 )
