@@ -1,6 +1,9 @@
 #import bevy_pbr::{
     pbr_fragment::pbr_input_from_standard_material,
     pbr_functions::alpha_discard,
+    mesh_view_bindings::view,
+    mesh_bindings::world_from_local,
+    utils::coords_to_viewport_uv,
 }
 
 #ifdef PREPASS_PIPELINE
@@ -15,12 +18,12 @@
 }
 #endif
 
-struct MyExtendedMaterial {
-    quantize_steps: u32,
-}
-
 @group(2) @binding(100)
-var<uniform> my_extended_material: MyExtendedMaterial;
+var line_shadow_texture: texture_2d<f32>;
+@group(2) @binding(101)
+var shadow_texture_sampler: sampler;
+@group(2) @binding(102)
+var<uniform> model_size: vec3<f32>;
 
 fn grayscale(gamma: vec4<f32>) -> f32 {
     return (gamma.r + gamma.g + gamma.b) / 3.0;
@@ -47,28 +50,37 @@ fn fragment(
     var out: FragmentOutput;
     // apply lighting
 
-    let shadow = 1.0 - grayscale(pbr_input.material.base_color - apply_pbr_lighting(pbr_input));
+    let scale_factor = 1.0 / length(model_size * 4);
 
-    out.color = pbr_input.material.base_color;
+    let light = apply_pbr_lighting(pbr_input);
+    let light_power = pbr_input.material.base_color - light;
+    let shadow_power = 1.0 - grayscale(light_power);
 
-    // Strong Shadow
-    if shadow < 0.5 {
-        out.color -= vec4(1.00, 1.00, 1.00, 0.0);
-    }
-
-    // Middle Shadow
-    else if shadow < 0.8 {
-        out.color -= vec4(0.50, 0.5, 0.50, 0.0);
-    }
-
-    // Light Shadow
-    else if shadow < 1.0 {
-        out.color -= vec4(0.01, 0.01, 0.01, 0.0);
-    }
+    let viewport_uv = coords_to_viewport_uv(in.position.xy, view.viewport) * 8;
+    let lines = textureSample(line_shadow_texture, shadow_texture_sampler, viewport_uv).rgba;
+    //let lines = textureSample(line_shadow_texture, shadow_texture_sampler, vec2f(in.uv / scale_factor)).rgba;
 
     // apply in-shader post processing (fog, alpha-premultiply, and also tonemapping, debanding if the camera is non-hdr)
     // note this does not include fullscreen postprocessing effects like bloom.
-    //out.color = main_pass_post_lighting_processing(pbr_input, out.color);
+    let post_processing_light = pbr_input.material.base_color - main_pass_post_lighting_processing(pbr_input, light);
+    out.color = pbr_input.material.base_color;
+
+    // Strong Shadow
+    if shadow_power < 0.5 && (lines.r == 1.0 || lines.g == 1.0 || lines.b == 1.0) {
+        out.color -= vec4(1.00, 1.00, 1.00, 0.0);
+        out.color -= post_processing_light * 0.1;
+    }
+
+    // Middle Shadow
+    else if shadow_power < 0.8 && (lines.r == 1.0 || lines.b == 1.0) {
+        out.color -= vec4(1.00, 1.00, 1.00, 0.0);
+        out.color -= post_processing_light * 0.2;
+    }
+
+    // Light Shadow
+    else if shadow_power < 1.1 && (lines.r == 1.0) {
+        out.color -= vec4(1.00, 1.00, 1.00, 0.0);
+    }
 
 
 #endif
